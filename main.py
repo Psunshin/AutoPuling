@@ -6,8 +6,8 @@ import win32api
 import json
 
 init_actions = [['f'], [2.4], ['f'], [0.5], ['s', 0.2, 3], [0.3], ['f'], [1.5], ['f'], [0.5], ['f'], [0.5], ['f'], [1.0]]
-play_actions = [['f'], [5], ['w', 0.0, 2], [5], ['d', 0.7, 3], [0.65], ['d', 1.1, 3], [1.1], ['d', 0.5, 3], [0.3], ['d', 0.9, 3], [2], ['w', 0.0, 1]]
-replay_actions = [[5], ['f'], [1.8], ['f'], [0.7], ['f'], [0.7], ['f'], [1.5], ['f'], [0.7], ['f'], [0.7], ['f'], [1.2]]
+play_actions = [['f'], [5], ['w', 0.0, 2], [5], ['d', 0.7, 3], [0.5], ['d', 1.8, 3], [1], ['d', 0.2, 3], [0.3], ['d', 0.1, 3], [2], ['w', 0.0, 1]]
+replay_actions = [[5], ['f'], ['wait', 0.1, 1.8], ['f'], ['wait', 0.1, 0.6], ['f'], ['wait', 0.1, 0.6], ['f'], ['wait', 0.1, 1.5], ['f'], ['wait', 0.1, 0.6], ['f'], ['wait', 0.1, 0.6], ['f'],['wait', 0.1, 0.8],['f']]
 # 关闭游戏窗口
 def close_window(hwnd):
     try:
@@ -82,6 +82,10 @@ def save_info(info):
     with open('info.txt', 'w') as f:
         json.dump(info, f)
 
+def save_action(info):
+    with open('action.txt', 'w') as f:
+        json.dump(info, f)
+
 # 询问用户选择
 def ask_user_choice():
     global closure, remember_cls
@@ -113,15 +117,32 @@ def ask_user_choice():
 
 def do_actions(actions):
     global stop
+    action =[]
     for a in actions:
         if stop:break
         if type(a[0]) in [int, float]:
             time.sleep(a[0])
+            action.append(f"sleep:{a[0]}")
+        elif a[0] == 'wait':  # 新增动态等待
+            wait_until_done(a[1], a[2])
+            action.append(f"wait:{a[1]}-{a[2]}")
         elif type(a[0]) == str:
             if a[0] == 'f':
                 press(a[0])
             else:
                 press(a[0], a[1], a[2])
+                action.append(f"key:{a[0]}")
+                action.append(f"tm:{a[1]}")
+    print(action)
+    return action
+
+def wait_until_done(check_interval=0.5, max_wait=3):
+    """每隔check_interval秒检测一次，最多等待max_wait秒"""
+    start_time = time.time()
+    while time.time() - start_time < max_wait:
+        # 这里可以添加其他检测逻辑（如像素、窗口状态）
+        time.sleep(check_interval)
+    return  # 强制继续，即使未检测到
 
 if __name__ == "__main__":
     stop = False
@@ -142,20 +163,26 @@ if __name__ == "__main__":
     keyboard.on_press(on_key_press)
     game_nd = init_window()
     nums = 267
-
+    action_list = []
     if game_nd is not None:
         tm = time.time()
-        end_time = tm + 31.18 * nums
+        end_time = tm + 30.03 * nums
         print("游戏窗口已找到，开始运行。")
-        print(f"运行时间：{int(31.18 * nums // 60)} 分钟，预计结束时刻：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}。")
+        print(f"运行时间：{int(30.03 * nums // 60)} 分钟，预计结束时刻：{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(end_time))}。")
 
         do_actions(init_actions)
         for _ in range(nums):
             ttm = time.time()
-            do_actions(play_actions)
+            action_str = do_actions(play_actions)
+            action_time =time.time() - ttm
+            print(f"运行路径耗时:{action_time:.2f}")
             do_actions(replay_actions)
+            print(f"重试选项耗时:{time.time() - ttm - action_time:.2f}")
+            print()
             if stop:break
             print(f"第 {_ + 1} 次运行，耗时 {time.time() - ttm:.2f} s。")
+            action_list.append(action_str)
+            save_action(action_list)
         if stop:
             print("运行已停止。")
         else:
